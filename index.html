@@ -968,13 +968,30 @@ function applyDialRotation(heading){
 }
 let smoothedHeading = null;
 function shortestAngleDiff(a, b){ return ((a-b+540)%360)-180; }
+// Tilt-compensated compass heading using the phone's back-facing axis (the natural
+// reference when a phone is held up to read its screen, as opposed to lying flat).
+// Verified against a brute-force rotation-matrix computation across many tilt angles.
+function tiltCompensatedHeading(alpha, beta, gamma){
+  const aR=alpha*D2R, bR=beta*D2R, gR=gamma*D2R;
+  const cA=Math.cos(aR), sA=Math.sin(aR);
+  const cB=Math.cos(bR), sB=Math.sin(bR);
+  const cG=Math.cos(gR), sG=Math.sin(gR);
+  const x = -(cA*sG + sA*sB*cG);
+  const y = -(sA*sG - cA*sB*cG);
+  let heading = Math.atan2(x, y) * R2D;
+  return (heading + 360) % 360;
+}
 function handleOrientation(e){
   orientationReceived = true;
   let heading = null;
   if(typeof e.webkitCompassHeading === 'number'){
-    heading = e.webkitCompassHeading; // iOS Safari: already true compass heading
+    heading = e.webkitCompassHeading; // iOS Safari: already true, tilt-compensated compass heading
+  } else if(typeof e.alpha === 'number' && typeof e.beta === 'number' && typeof e.gamma === 'number'){
+    heading = tiltCompensatedHeading(e.alpha, e.beta, e.gamma);
+    const screenAngle = (screen.orientation && typeof screen.orientation.angle === 'number') ? screen.orientation.angle : 0;
+    heading = (heading - screenAngle + 360) % 360;
   } else if(typeof e.alpha === 'number'){
-    heading = (360 - e.alpha) % 360; // best-effort cross-browser approximation (true north if e.absolute, otherwise relative)
+    heading = (360 - e.alpha) % 360; // fallback if beta/gamma unavailable
   }
   if(heading===null) return;
   if(smoothedHeading===null){
