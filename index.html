@@ -966,6 +966,8 @@ function applyDialRotation(heading){
   const h = (typeof heading==='number') ? heading : 0;
   $('qiblaDial').style.transform = 'rotate('+(-h)+'deg)';
 }
+let smoothedHeading = null;
+function shortestAngleDiff(a, b){ return ((a-b+540)%360)-180; }
 function handleOrientation(e){
   orientationReceived = true;
   let heading = null;
@@ -974,11 +976,16 @@ function handleOrientation(e){
   } else if(typeof e.alpha === 'number'){
     heading = (360 - e.alpha) % 360; // best-effort cross-browser approximation (true north if e.absolute, otherwise relative)
   }
-  if(heading!==null){
-    $('deviceHeadingText').textContent = Math.round(heading)+'°';
-    applyDialRotation(heading);
-    $('compassStatus').textContent = '✅ البوصلة تعمل — وجّه أعلى الهاتف نحو السهم ▲.';
+  if(heading===null) return;
+  if(smoothedHeading===null){
+    smoothedHeading = heading;
+  } else {
+    const diff = shortestAngleDiff(heading, smoothedHeading);
+    smoothedHeading = (smoothedHeading + diff*0.12 + 360) % 360;
   }
+  $('deviceHeadingText').textContent = Math.round(smoothedHeading)+'°';
+  applyDialRotation(smoothedHeading);
+  $('compassStatus').textContent = '✅ البوصلة تعمل — وجّه أعلى الهاتف نحو السهم ▲.';
 }
 function attachCompassListeners(){
   if(compassListenerAttached) return;
@@ -993,6 +1000,7 @@ function detachCompassListeners(){
 }
 function startWatchdog(){
   orientationReceived = false;
+  smoothedHeading = null;
   clearTimeout(watchdogTimer);
   watchdogTimer = setTimeout(()=>{
     if(!orientationReceived){
